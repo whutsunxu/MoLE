@@ -93,6 +93,9 @@ class Exp_Main(Exp_Basic):
         vali_data, vali_loader = self._get_data(flag='val')
         test_data, test_loader = self._get_data(flag='test')
 
+        print("train_data: {}, vali_data: {}, test_data: {}", len(train_data), len(vali_data), len(test_data))
+        print("train_loader: {}, vali_loader: {}, test_loader: {}", len(train_loader), len(vali_loader), len(test_loader))
+
         path = os.path.join(self.args.checkpoints, setting)
         if not os.path.exists(path):
             os.makedirs(path)
@@ -130,6 +133,10 @@ class Exp_Main(Exp_Basic):
                 batch_y_mark = batch_y_mark.float().to(self.device)
                 batch_xy = torch.cat([batch_x, batch_y[:,-self.args.pred_len:,:]], dim=1)
 
+                print("batch_x.shape: {}, batch_y.shape: {}, batch_x_mark.shape: {}, batch_y_mark.shape: {}", \
+                      batch_x.shape, batch_y.shape, batch_x_mark.shape, batch_y_mark.shape)
+                
+
                 if self.args.in_batch_augmentation:
                     aug = augmentation('batch')
                     methods = {'f_mask':aug.freq_mask, 'f_mix': aug.freq_mix, 'noise': aug.noise, 'warp': aug.warping, 'flip': aug.flipping, 'mask': aug.masking, 'mask_seg': aug.masking_seg, 'noise_input':aug.noise_input}
@@ -150,7 +157,7 @@ class Exp_Main(Exp_Basic):
                 dec_inp = torch.zeros_like(batch_y[:, -self.args.pred_len:, :]).float()
                 dec_inp = torch.cat([batch_y[:, :self.args.label_len, :], dec_inp], dim=1).float().to(self.device)
 
-                # encoder - decoder
+                # encoder - decoder, forward
                 if 'MoLE' in self.args.model and ('Linear' in self.args.model or 'MLP' in self.args.model):
                     outputs = self.model(batch_x, batch_x_mark)
                 elif 'former' not in self.args.model:
@@ -211,7 +218,7 @@ class Exp_Main(Exp_Basic):
         
         if test:
             print('loading model')
-            self.model.load_state_dict(torch.load(os.path.join('./checkpoints/' + setting, 'checkpoint.pth')))
+            self.model.load_state_dict(torch.load(os.path.join('./checkpoints/' + 'ECL_336_96_f_mask_0_0.005_1_MoLE_DLinear_custom_ftM_sl336_ll336_pl96_dm512_nh8_el2_dl1_df2048_fc1_ebtimeF_dtTrue_Exp_0_8_1_f_mask_0.0_0.005_sd2021_hd0.0/', 'checkpoint.pth')))
 
         preds = []
         trues = []
@@ -220,7 +227,7 @@ class Exp_Main(Exp_Basic):
         folder_path = './test_results/' + setting + '/'
         if not os.path.exists(folder_path):
             os.makedirs(folder_path)
-
+        
         self.model.eval()
         with torch.no_grad():
             for i, (batch_x, batch_y, batch_x_mark, batch_y_mark) in enumerate(test_loader):
@@ -230,9 +237,13 @@ class Exp_Main(Exp_Basic):
                 batch_x_mark = batch_x_mark.float().to(self.device)
                 batch_y_mark = batch_y_mark.float().to(self.device)
 
+                print("Test #{}: batch_x.shape: {}, batch_y.shape: {}, batch_x_mark.shape: {}, batch_y_mark.shape: {}".format(\
+                      i, batch_x.shape, batch_y.shape, batch_x_mark.shape, batch_y_mark.shape))
+
                 # decoder input
                 dec_inp = torch.zeros_like(batch_y[:, -self.args.pred_len:, :]).float()
                 dec_inp = torch.cat([batch_y[:, :self.args.label_len, :], dec_inp], dim=1).float().to(self.device)
+                print("dec_inp.shape: {}".format(dec_inp.shape))
                 # encoder - decoder
                 
                 if 'MoLE' in self.args.model and ('Linear' in self.args.model or 'MLP' in self.args.model):
@@ -241,6 +252,8 @@ class Exp_Main(Exp_Basic):
                         time_embeds.append(gating_weights.detach().cpu().numpy())
                     else:
                         outputs = self.model(batch_x, batch_x_mark, return_seperate_head=seperate_head or fixed_head is not None)
+                        print("Model:\n", self.model)
+                        
                 elif 'former' not in self.args.model:
                         outputs = self.model(batch_x)
                 else:
@@ -263,6 +276,9 @@ class Exp_Main(Exp_Basic):
                 preds.append(pred)
                 trues.append(true)
                 inputx.append(batch_x.detach().cpu().numpy())
+
+                
+
 
         if self.args.test_flop:
             test_params_flop((batch_x.shape[1],batch_x.shape[2]))

@@ -210,7 +210,7 @@ if args.is_training:
         torch.cuda.empty_cache()
 else:
     ii = 0
-    setting = '{}_{}_{}_ft{}_sl{}_ll{}_pl{}_dm{}_nh{}_el{}_dl{}_df{}_fc{}_eb{}_dt{}_{}_{}_hd{}_fr{}_tsr{}_rr{}_rbr{}_ew{}_bh{}'.format(args.model_id,
+    setting = '{}_{}_{}_ft{}_sl{}_ll{}_pl{}_dm{}_nh{}_el{}_dl{}_df{}_fc{}_eb{}_dt{}_{}_{}_hd{}'.format(args.model_id,
                                                                                                   args.model,
                                                                                                   args.data,
                                                                                                   args.features,
@@ -227,13 +227,7 @@ else:
                                                                                                   args.distil,
                                                                                                   args.des, 
                                                                                                   ii, 
-                                                                                                  args.head_dropout, 
-                                                                                                  args.use_fixed_routing,
-                                                                                                  args.use_time_series_routing,
-                                                                                                  args.use_random_routing,
-                                                                                                  args.use_random_bypass_routing,
-                                                                                                  args.use_equal_weighting_in_testing_time,
-                                                                                                  args.use_best_head_in_testing_time)
+                                                                                                  args.head_dropout)
 
     exp = Exp(args)  # set experiments
     print('>>>>>>>testing : {}<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'.format(setting))

@@ -16,7 +16,7 @@ fi
 
 head_dropout=$4
 
-(
+
 pred_len=$1
 lr=$2
 t_dim=$3
@@ -30,13 +30,16 @@ if [[ -z "${SEED}" ]]; then
 else
   MY_SEED="${SEED}"
   mkdir -p logs/ablations/head_dropout/$MY_MODEL/$head_dropout/$MY_SEED
-  LOG_FILE=logs/ablations/head_dropout/$MY_MODEL/$head_dropout/$MY_SEED/ECL_$MY_SEQ_LEN'_'$pred_len'_'$aug_method'_'$aug_rate'_'$lr'_'$t_dim.log
+  LOG_FILE=logs/ablations/head_dropout/$MY_MODEL/$head_dropout/$MY_SEED/ECL_$MY_SEQ_LEN'_'$pred_len'_'$aug_method'_'$aug_rate'_'$lr'_'$t_dim'_inference1'.log
 fi
 
 if [ -e "$LOG_FILE" ]; then
-    echo "File exists"
-    exit 1
+    echo "File exists, will delete it: " $LOG_FILE
+    rm -rf $LOG_FILE
+    # exit 1
 fi
+
+echo "log File: " $LOG_FILE
 
 mkdir -p "$(dirname "$LOG_FILE")"
 
@@ -47,9 +50,9 @@ if [ "$TEST_MODE" = true ]; then
 fi
 
 python -u run_longExp.py \
---is_training 1 \
+--is_training 0 \
 --root_path ./dataset/ \
---data_path ECL.csv \
+--data_path electricity.csv \
 --model_id ECL_$MY_SEQ_LEN'_'$pred_len'_'$aug_method'_'$aug_rate'_'$lr'_'$t_dim \
 --model MoLE_$MY_MODEL \
 --data custom \
@@ -67,4 +70,4 @@ python -u run_longExp.py \
 --head_dropout $head_dropout \
 --seed $MY_SEED \
 --learning_rate $lr >> $LOG_FILE
-)
+
