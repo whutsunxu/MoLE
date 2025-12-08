@@ -76,30 +76,30 @@ class Model(nn.Module):
 
     def forward(self, x, x_mark, return_gating_weights=False, return_seperate_head=False):
         # x: [Batch, Input length, Channel]
-        print("x: {}, x_mark: {}".format(x.shape, x_mark.shape))
+        # print("x: {}, x_mark: {}".format(x.shape, x_mark.shape))
         x_mark_initial = x_mark[:,0]
-        print("x_mark_initial: {}".format(x_mark_initial.shape))
+        # print("x_mark_initial: {}".format(x_mark_initial.shape))
         seasonal_init, trend_init = self.decompsition(x)
-        print("seasonal_init(res): {}, trend_init(avg): {}".format(seasonal_init.shape, trend_init.shape))
+        # print("seasonal_init(res): {}, trend_init(avg): {}".format(seasonal_init.shape, trend_init.shape))
         seasonal_init, trend_init = seasonal_init.permute(0,2,1), trend_init.permute(0,2,1)
-        print("after permutation, seasonal_init(res): {}, trend_init(avg): {}".format(seasonal_init.shape, trend_init.shape))
+        # print("after permutation, seasonal_init(res): {}, trend_init(avg): {}".format(seasonal_init.shape, trend_init.shape))
         seasonal_output = self.Linear_Seasonal(seasonal_init)
-        print("seasonal_output: {}".format(seasonal_output.shape))
+        # print("seasonal_output: {}".format(seasonal_output.shape))
         trend_output = self.Linear_Trend(trend_init)
-        print("trend_output: {}".format(trend_output.shape))
+        # print("trend_output: {}".format(trend_output.shape))
 
         x = seasonal_output + trend_output
         
         
         temporal_out = self.Linear_Temporal(x_mark_initial).reshape(-1, self.num_predictions)
-        print("temporal_out: {}".format(temporal_out.shape))
+        # print("temporal_out: {}".format(temporal_out.shape))
         temporal_out = self.head_dropout(temporal_out) 
         temporal_out = nn.Softmax(dim=1)(temporal_out)
-        print("temporal_out: {}".format(temporal_out.shape))
+        # print("temporal_out: {}".format(temporal_out.shape))
 
         x_raw = x.reshape(-1, self.pred_len, self.num_predictions)
         
         x = torch.matmul(x_raw, temporal_out.unsqueeze(2)).squeeze(2).reshape(-1, self.channels, self.pred_len).permute(0,2,1)
-        print("x_raw: {}, temporal_out.unsqueeze(2): {}, x: {}".format(x_raw.shape, temporal_out.unsqueeze(2).shape, x.shape))
+        # print("x_raw: {}, temporal_out.unsqueeze(2): {}, x: {}".format(x_raw.shape, temporal_out.unsqueeze(2).shape, x.shape))
         
         return x

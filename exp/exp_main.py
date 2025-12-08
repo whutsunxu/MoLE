@@ -133,8 +133,8 @@ class Exp_Main(Exp_Basic):
                 batch_y_mark = batch_y_mark.float().to(self.device)
                 batch_xy = torch.cat([batch_x, batch_y[:,-self.args.pred_len:,:]], dim=1)
 
-                print("batch_x.shape: {}, batch_y.shape: {}, batch_x_mark.shape: {}, batch_y_mark.shape: {}", \
-                      batch_x.shape, batch_y.shape, batch_x_mark.shape, batch_y_mark.shape)
+                # print("batch_x.shape: {}, batch_y.shape: {}, batch_x_mark.shape: {}, batch_y_mark.shape: {}", \
+                #       batch_x.shape, batch_y.shape, batch_x_mark.shape, batch_y_mark.shape)
                 
 
                 if self.args.in_batch_augmentation:
@@ -237,13 +237,13 @@ class Exp_Main(Exp_Basic):
                 batch_x_mark = batch_x_mark.float().to(self.device)
                 batch_y_mark = batch_y_mark.float().to(self.device)
 
-                print("Test #{}: batch_x.shape: {}, batch_y.shape: {}, batch_x_mark.shape: {}, batch_y_mark.shape: {}".format(\
-                      i, batch_x.shape, batch_y.shape, batch_x_mark.shape, batch_y_mark.shape))
+                # print("Test #{}: batch_x.shape: {}, batch_y.shape: {}, batch_x_mark.shape: {}, batch_y_mark.shape: {}".format(\
+                #       i, batch_x.shape, batch_y.shape, batch_x_mark.shape, batch_y_mark.shape))
 
                 # decoder input
                 dec_inp = torch.zeros_like(batch_y[:, -self.args.pred_len:, :]).float()
                 dec_inp = torch.cat([batch_y[:, :self.args.label_len, :], dec_inp], dim=1).float().to(self.device)
-                print("dec_inp.shape: {}".format(dec_inp.shape))
+                # print("dec_inp.shape: {}".format(dec_inp.shape))
                 # encoder - decoder
                 
                 if 'MoLE' in self.args.model and ('Linear' in self.args.model or 'MLP' in self.args.model):
@@ -252,7 +252,7 @@ class Exp_Main(Exp_Basic):
                         time_embeds.append(gating_weights.detach().cpu().numpy())
                     else:
                         outputs = self.model(batch_x, batch_x_mark, return_seperate_head=seperate_head or fixed_head is not None)
-                        print("Model:\n", self.model)
+                        # print("Model:\n", self.model)
                         
                 elif 'former' not in self.args.model:
                         outputs = self.model(batch_x)
