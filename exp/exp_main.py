@@ -12,12 +12,14 @@ from utils.augmentations import augmentation
 import os
 import time
 
-from torch.optim import lr_scheduler 
+from torch.optim import lr_scheduler
 
 
 import warnings
 import matplotlib.pyplot as plt
 import numpy as np
+
+import ttnn
 
 warnings.filterwarnings('ignore')
 
@@ -107,7 +109,7 @@ class Exp_Main(Exp_Basic):
 
         model_optim = self._select_optimizer()
         criterion = self._select_criterion()
-        
+
         # scheduler = lr_scheduler.OneCycleLR(optimizer = model_optim,
         #                             steps_per_epoch = train_steps,
         #                             pct_start = self.args.pct_start,
@@ -135,12 +137,12 @@ class Exp_Main(Exp_Basic):
 
                 # print("batch_x.shape: {}, batch_y.shape: {}, batch_x_mark.shape: {}, batch_y_mark.shape: {}", \
                 #       batch_x.shape, batch_y.shape, batch_x_mark.shape, batch_y_mark.shape)
-                
+
 
                 if self.args.in_batch_augmentation:
                     aug = augmentation('batch')
                     methods = {'f_mask':aug.freq_mask, 'f_mix': aug.freq_mix, 'noise': aug.noise, 'warp': aug.warping, 'flip': aug.flipping, 'mask': aug.masking, 'mask_seg': aug.masking_seg, 'noise_input':aug.noise_input}
-                        
+
                     if self.args.wo_original_set:
                         xy = methods[self.args.aug_method](batch_x, batch_y[:, -self.args.pred_len:, :], rate=self.args.aug_rate)
                         batch_x, batch_y = xy[:, :self.args.seq_len, :], xy[:, -self.args.label_len-self.args.pred_len:, :]
@@ -152,7 +154,7 @@ class Exp_Main(Exp_Basic):
                             batch_y = torch.cat([batch_y,batch_y2],dim=0)
                             batch_x_mark = torch.cat([batch_x_mark,batch_x_mark],dim=0)
                             batch_y_mark = torch.cat([batch_y_mark,batch_y_mark],dim=0)
-                        
+
                 # decoder input
                 dec_inp = torch.zeros_like(batch_y[:, -self.args.pred_len:, :]).float()
                 dec_inp = torch.cat([batch_y[:, :self.args.label_len, :], dec_inp], dim=1).float().to(self.device)
@@ -189,7 +191,7 @@ class Exp_Main(Exp_Basic):
 
                 loss.backward()
                 model_optim.step()
-                
+
                 # if self.args.lradj == 'TST':
                 #     adjust_learning_rate(model_optim, scheduler, epoch + 1, self.args, verbose=False)
                 #     scheduler.step()
@@ -215,7 +217,7 @@ class Exp_Main(Exp_Basic):
 
     def test(self, setting, test=0, flag='test', fixed_head=None, seperate_head=False):
         test_data, test_loader = self._get_data(flag=flag)
-        
+
         if test:
             print('loading model')
             self.model.load_state_dict(torch.load(os.path.join('./checkpoints/' + 'ECL_336_96_f_mask_0_0.005_1_MoLE_DLinear_custom_ftM_sl336_ll336_pl96_dm512_nh8_el2_dl1_df2048_fc1_ebtimeF_dtTrue_Exp_0_8_1_f_mask_0.0_0.005_sd2021_hd0.0/', 'checkpoint.pth')))
@@ -227,7 +229,16 @@ class Exp_Main(Exp_Basic):
         folder_path = './test_results/' + setting + '/'
         if not os.path.exists(folder_path):
             os.makedirs(folder_path)
-        
+
+        use_device = True
+        tt_device = None
+        tt_type = None
+        rtol=1e-5
+        atol=1e-5
+        if use_device:
+            tt_device=ttnn.CreateDevice(0)
+            tt_type=ttnn.float32
+
         self.model.eval()
         with torch.no_grad():
             for i, (batch_x, batch_y, batch_x_mark, batch_y_mark) in enumerate(test_loader):
@@ -241,11 +252,43 @@ class Exp_Main(Exp_Basic):
                 #       i, batch_x.shape, batch_y.shape, batch_x_mark.shape, batch_y_mark.shape))
 
                 # decoder input
-                dec_inp = torch.zeros_like(batch_y[:, -self.args.pred_len:, :]).float()
-                dec_inp = torch.cat([batch_y[:, :self.args.label_len, :], dec_inp], dim=1).float().to(self.device)
+                dec_inp=None
+                tt_dec_inp=None
+
+                if use_device:
+                    tt_batch_x=ttnn.from_torch(batch_x, layout=ttnn.ROW_MAJOR_LAYOUT, dtype=tt_type, device=tt_device)
+                    tt_batch_y=ttnn.from_torch(batch_y, layout=ttnn.ROW_MAJOR_LAYOUT, dtype=tt_type, device=tt_device)
+                    tt_batch_x_mark=ttnn.from_torch(batch_x_mark, layout=ttnn.ROW_MAJOR_LAYOUT, dtype=tt_type, device=tt_device)
+                    tt_batch_y_mark=ttnn.from_torch(batch_y_mark, layout=ttnn.ROW_MAJOR_LAYOUT, dtype=tt_type, device=tt_device)
+
+                    tensor_dim0=(batch_y[:, -self.args.pred_len:, :]).shape
+                    tt_dec_inp0 = ttnn.zeros(tensor_dim0, layout=ttnn.ROW_MAJOR_LAYOUT, dtype=tt_type, device=tt_device)
+                    slice_end=(tt_batch_y.shape[0], self.args.label_len, tt_batch_y.shape[2])
+                    tt_dec_inp1 = ttnn.slice(tt_batch_y, slice_start=(0, 0, 0), slice_end=slice_end, slice_step=(1, 1, 1))
+
+                    tt_dec_inp = ttnn.concat([tt_dec_inp1, tt_dec_inp0], dim=1)
+
+                    back_torch_tt_dec_inp = ttnn.to_torch(tt_dec_inp)
+                    dec_inp = back_torch_tt_dec_inp
+
+                    # print("start assert")
+                    # assert torch.equal(dec_inp, back_torch_tt_dec_inp)  ## TODO(Jason.sun): it will fail if using ttnn.TILE_LAYOUT
+                    # try:
+                    #     # Assert tensors are close (strict tolerance)
+                    #     torch.testing.assert_close(dec_inp, back_torch_tt_dec_inp, rtol=rtol, atol=atol, equal_nan=False)
+                    # except AssertionError as e:
+                    #     # Print the detailed mismatch log
+                    #     print("Mismatch details for t1:\n", e)
+                    #     assert False
+                    # print("end assert")
+                else:
+                    dec_inp = torch.zeros_like(batch_y[:, -self.args.pred_len:, :]).float()
+                    dec_inp = torch.cat([batch_y[:, :self.args.label_len, :], dec_inp], dim=1).float().to(self.device)
+
+
                 # print("dec_inp.shape: {}".format(dec_inp.shape))
                 # encoder - decoder
-                
+
                 if 'MoLE' in self.args.model and ('Linear' in self.args.model or 'MLP' in self.args.model):
                     if self.args.save_gating_weights:
                         outputs, gating_weights = self.model(batch_x, batch_x_mark, return_gating_weights=True, return_seperate_head=seperate_head or fixed_head is not None)
@@ -253,7 +296,7 @@ class Exp_Main(Exp_Basic):
                     else:
                         outputs = self.model(batch_x, batch_x_mark, return_seperate_head=seperate_head or fixed_head is not None)
                         # print("Model:\n", self.model)
-                        
+
                 elif 'former' not in self.args.model:
                         outputs = self.model(batch_x)
                 else:
@@ -277,7 +320,7 @@ class Exp_Main(Exp_Basic):
                 trues.append(true)
                 inputx.append(batch_x.detach().cpu().numpy())
 
-                
+
 
 
         if self.args.test_flop:
@@ -327,11 +370,11 @@ class Exp_Main(Exp_Basic):
             np.save(folder_path + f'pred.npy_{flag}', preds)
             np.save(folder_path + f'true_{flag}.npy', trues)
             np.save(folder_path + f'x_{flag}.npy', inputx)
-        
+
         if time_embeds:
             time_embeds = np.concatenate(time_embeds, axis=0)
             np.save(self.args.save_gating_weights, time_embeds)
-        
+
         if seperate_head:
             return lowest_index
         return
