@@ -17,8 +17,8 @@
 
 ## Models Parameters Table
 | model | seq_len | label_len | pred_len | patch_len | stride | kernel_size | d_model | n_heads | batch_size | enc_in | udefined_v | t_dim | mse | mae | rse |
-|---------|---------|---------|---------|---------|---------|---------|---------|---------|---------|---------|---------|---------|---------|---------|
-| MoLE_DLinear-Inference | 336 | 336 | 96 | 16 | 1 | 25 | 512 | 8 | 8 | 321 | 4 | 1 | 0.1398659199476242| 0.23698076605796814 | 0.3717449903488159 |
+|---------|---------|---------|---------|---------|---------|---------|---------|---------|---------|---------|---------|---------|---------|---------| ---------|
+| MoLE_DLinear-Inference | 336 | 336 | 96 | 16 | 1 | 25 | 512 | 8 | 8 | 321 | 4 | 1 | 0.1398659199476242 | 0.23698076605796814 | 0.3717449903488159 |
 
 ## OP List and Info
 | OPs | input0 name | input0 dtype | input0 dims | input1 name | input1 dtype | input1 dims | other configs | output0 name | output0 dtype | output0 dims | test result| tolerance |
