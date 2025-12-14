@@ -88,6 +88,8 @@ class Model(nn.Module):
             x_mark_initial = x_mark[:,0]
             # print("x_mark_initial: {}".format(x_mark_initial.shape))
             seasonal_init, trend_init = self.decompsition(x)
+            # print("seasonal_init(res): {}, trend_init(avg): {}".format(seasonal_init.shape, trend_init.shape))
+            seasonal_init, trend_init = seasonal_init.permute(0,2,1), trend_init.permute(0,2,1)
         else:
             "---------------------------- slice --------------------------"
             tt_x_mark_initial = ttnn.slice(
@@ -124,12 +126,14 @@ class Model(nn.Module):
             # print("trend_init: ",trend_init.shape)
             seasonal_init=x-trend_init
 
-            trend_init=ttnn.to_torch(trend_init)
-            seasonal_init=ttnn.to_torch(seasonal_init)
+            trend_init_nch=ttnn.permute(trend_init, (0, 2, 1))  ## N C H
+            seasonal_init_nch=ttnn.permute(seasonal_init, (0, 2, 1))  ## N C H
+
+            trend_init=ttnn.to_torch(trend_init_nch)
+            seasonal_init=ttnn.to_torch(seasonal_init_nch)
 
 
-        # print("seasonal_init(res): {}, trend_init(avg): {}".format(seasonal_init.shape, trend_init.shape))
-        seasonal_init, trend_init = seasonal_init.permute(0,2,1), trend_init.permute(0,2,1)
+
         # print("after permutation, seasonal_init(res): {}, trend_init(avg): {}".format(seasonal_init.shape, trend_init.shape))
         seasonal_output = self.Linear_Seasonal(seasonal_init)
         # print("seasonal_output: {}".format(seasonal_output.shape))
