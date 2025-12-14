@@ -30,7 +30,7 @@ if [[ -z "${SEED}" ]]; then
 else
   MY_SEED="${SEED}"
   mkdir -p logs/ablations/head_dropout/$MY_MODEL/$head_dropout/$MY_SEED
-  LOG_FILE=logs/ablations/head_dropout/$MY_MODEL/$head_dropout/$MY_SEED/ECL_$MY_SEQ_LEN'_'$pred_len'_'$aug_method'_'$aug_rate'_'$lr'_'$t_dim'_inference2'.log
+  LOG_FILE=logs/ablations/head_dropout/$MY_MODEL/$head_dropout/$MY_SEED/ECL_$MY_SEQ_LEN'_'$pred_len'_'$aug_method'_'$aug_rate'_'$lr'_'$t_dim'_inference3'.log
 fi
 
 if [ -e "$LOG_FILE" ]; then

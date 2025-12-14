@@ -75,22 +75,59 @@ class Model(nn.Module):
 
         self.head_dropout = HeadDropout(configs.head_dropout)
 
+        self.kernel_size = configs.kernel_size
+        self.stride=1
+
 
     def forward(self, x, x_mark, return_gating_weights=False, return_seperate_head=False, device=None, type=ttnn.float32):
         # x: [Batch, Input length, Channel]
         # print("x: {}, x_mark: {}".format(x.shape, x_mark.shape))
         x_mark_initial = None
+        seasonal_init, trend_init=None,None
         if device==None:
             x_mark_initial = x_mark[:,0]
+            # print("x_mark_initial: {}".format(x_mark_initial.shape))
+            seasonal_init, trend_init = self.decompsition(x)
         else:
+            "---------------------------- slice --------------------------"
             tt_x_mark_initial = ttnn.slice(
                 x_mark, slice_start=(0, 0, 0), slice_end=(x_mark.shape[0], 1, x_mark.shape[2]), slice_step=(1, 1, 1)
             )
             x_mark_initial=ttnn.to_torch(tt_x_mark_initial)
-            x=ttnn.to_torch(x)
 
-        # print("x_mark_initial: {}".format(x_mark_initial.shape))
-        seasonal_init, trend_init = self.decompsition(x)
+            "---------------------------- mov avg --------------------------"
+
+            x_low_h = ttnn.slice(
+                x, slice_start=(0, 0, 0), slice_end=(x.shape[0], 1, x.shape[2]), slice_step=(1, 1, 1)
+            )
+            x_high_h = ttnn.slice(
+                x, slice_start=(0, x.shape[1]-1, 0), slice_end=(x.shape[0], x.shape[1], x.shape[2]), slice_step=(1, 1, 1)
+            )
+
+            x_low_h_repeat=ttnn.repeat(x_low_h, (1, (self.kernel_size - 1) // 2, 1))
+            x_high_h_repeat=ttnn.repeat(x_high_h, (1, (self.kernel_size - 1) // 2, 1))
+
+            x_pad = ttnn.concat([x_low_h_repeat, x, x_high_h_repeat], dim=1)  ## N H C
+
+            x_nch=ttnn.permute(x_pad, (0, 2, 1))  ## N C H
+
+            host_x_nch=ttnn.to_torch(x_nch)
+            avgpool1d = torch.nn.AvgPool1d(kernel_size=self.kernel_size, stride=self.stride, padding=0)
+            host_avg_x_nch=avgpool1d(host_x_nch)
+            # print("avgpool1d: ", avgpool1d)
+            # print("host_x_nch: ", host_x_nch.shape)
+            # print("host_avg_x_nch: ", host_avg_x_nch.shape)
+
+            avg_x_nch=ttnn.from_torch(host_avg_x_nch, layout=ttnn.ROW_MAJOR_LAYOUT, dtype=type, device=device)
+
+            trend_init=ttnn.permute(avg_x_nch, (0, 2, 1))  ## N H C
+            # print("trend_init: ",trend_init.shape)
+            seasonal_init=x-trend_init
+
+            trend_init=ttnn.to_torch(trend_init)
+            seasonal_init=ttnn.to_torch(seasonal_init)
+
+
         # print("seasonal_init(res): {}, trend_init(avg): {}".format(seasonal_init.shape, trend_init.shape))
         seasonal_init, trend_init = seasonal_init.permute(0,2,1), trend_init.permute(0,2,1)
         # print("after permutation, seasonal_init(res): {}, trend_init(avg): {}".format(seasonal_init.shape, trend_init.shape))

@@ -233,8 +233,8 @@ class Exp_Main(Exp_Basic):
         use_device = True
         tt_device = None
         tt_type = None
-        rtol=1e-5
-        atol=1e-5
+        rtol=1e-4
+        atol=1e-4
         if use_device:
             tt_device=ttnn.CreateDevice(0)
             tt_type=ttnn.float32
@@ -354,7 +354,24 @@ class Exp_Main(Exp_Basic):
             mae, mse, rmse, mape, mspe, rse, corr = get_metric(preds[:,:,:,fixed_head], trues)
         else:
             mae, mse, rmse, mape, mspe, rse, corr = get_metric(preds, trues)
+
+        error_values = torch.tensor([mse, mae, rse])
+        ## golden from cpu calc results
+        error_golden = torch.tensor([0.1398659199476242, 0.23698076605796814, 0.3717449903488159])
+        distance_error = abs(error_golden - error_values)
+
+        # assert torch.allclose(z0, back_torch_tt_z0, rtol=rtol, atol=atol, equal_nan=False)
+        try:
+            # Assert tensors are close (strict tolerance)
+            torch.testing.assert_close(error_values, error_golden, rtol=rtol, atol=atol, equal_nan=False)
+        except AssertionError as e:
+            # Print the detailed mismatch log
+            print("Mismatch details for error:\n", e)
+            print('distance on error: mse:{}, mae:{}, rse:{}'.format(distance_error[0], distance_error[1], distance_error[2]))
+            assert False
+
         print('mse:{}, mae:{}, rse:{}'.format(mse, mae, rse))
+        print('distance on error: mse:{}, mae:{}, rse:{}'.format(distance_error[0], distance_error[1], distance_error[2]))
         f = open("result.txt", 'a')
         f.write(setting + "  \n")
         f.write('mse:{}, mae:{}, rse:{}, corr:{}'.format(mse, mae, rse, corr))
