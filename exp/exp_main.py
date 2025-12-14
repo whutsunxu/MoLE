@@ -253,38 +253,34 @@ class Exp_Main(Exp_Basic):
 
                 # decoder input
                 dec_inp=None
-                tt_dec_inp=None
+
+                g_dec_inp=None
+                g_batch_x=None
+                g_batch_y=None
+                g_batch_x_mark=None
+                g_batch_y_mark=None
 
                 if use_device:
-                    tt_batch_x=ttnn.from_torch(batch_x, layout=ttnn.ROW_MAJOR_LAYOUT, dtype=tt_type, device=tt_device)
-                    tt_batch_y=ttnn.from_torch(batch_y, layout=ttnn.ROW_MAJOR_LAYOUT, dtype=tt_type, device=tt_device)
-                    tt_batch_x_mark=ttnn.from_torch(batch_x_mark, layout=ttnn.ROW_MAJOR_LAYOUT, dtype=tt_type, device=tt_device)
-                    tt_batch_y_mark=ttnn.from_torch(batch_y_mark, layout=ttnn.ROW_MAJOR_LAYOUT, dtype=tt_type, device=tt_device)
+                    g_batch_x=ttnn.from_torch(batch_x, layout=ttnn.ROW_MAJOR_LAYOUT, dtype=tt_type, device=tt_device)
+                    g_batch_y=ttnn.from_torch(batch_y, layout=ttnn.ROW_MAJOR_LAYOUT, dtype=tt_type, device=tt_device)
+                    g_batch_x_mark=ttnn.from_torch(batch_x_mark, layout=ttnn.ROW_MAJOR_LAYOUT, dtype=tt_type, device=tt_device)
+                    g_batch_y_mark=ttnn.from_torch(batch_y_mark, layout=ttnn.ROW_MAJOR_LAYOUT, dtype=tt_type, device=tt_device)
 
                     tensor_dim0=(batch_y[:, -self.args.pred_len:, :]).shape
                     tt_dec_inp0 = ttnn.zeros(tensor_dim0, layout=ttnn.ROW_MAJOR_LAYOUT, dtype=tt_type, device=tt_device)
-                    slice_end=(tt_batch_y.shape[0], self.args.label_len, tt_batch_y.shape[2])
-                    tt_dec_inp1 = ttnn.slice(tt_batch_y, slice_start=(0, 0, 0), slice_end=slice_end, slice_step=(1, 1, 1))
+                    slice_end=(g_batch_y.shape[0], self.args.label_len, g_batch_y.shape[2])
+                    tt_dec_inp1 = ttnn.slice(g_batch_y, slice_start=(0, 0, 0), slice_end=slice_end, slice_step=(1, 1, 1))
 
-                    tt_dec_inp = ttnn.concat([tt_dec_inp1, tt_dec_inp0], dim=1)
-
-                    back_torch_tt_dec_inp = ttnn.to_torch(tt_dec_inp)
-                    dec_inp = back_torch_tt_dec_inp
-
-                    # print("start assert")
-                    # assert torch.equal(dec_inp, back_torch_tt_dec_inp)  ## TODO(Jason.sun): it will fail if using ttnn.TILE_LAYOUT
-                    # try:
-                    #     # Assert tensors are close (strict tolerance)
-                    #     torch.testing.assert_close(dec_inp, back_torch_tt_dec_inp, rtol=rtol, atol=atol, equal_nan=False)
-                    # except AssertionError as e:
-                    #     # Print the detailed mismatch log
-                    #     print("Mismatch details for t1:\n", e)
-                    #     assert False
-                    # print("end assert")
+                    g_dec_inp = ttnn.concat([tt_dec_inp1, tt_dec_inp0], dim=1)
                 else:
                     dec_inp = torch.zeros_like(batch_y[:, -self.args.pred_len:, :]).float()
                     dec_inp = torch.cat([batch_y[:, :self.args.label_len, :], dec_inp], dim=1).float().to(self.device)
+                    g_dec_inp = dec_inp
 
+                    g_batch_x=batch_x
+                    g_batch_y=batch_y
+                    g_batch_x_mark=batch_x_mark
+                    g_batch_y_mark=batch_y_mark
 
                 # print("dec_inp.shape: {}".format(dec_inp.shape))
                 # encoder - decoder
@@ -294,7 +290,8 @@ class Exp_Main(Exp_Basic):
                         outputs, gating_weights = self.model(batch_x, batch_x_mark, return_gating_weights=True, return_seperate_head=seperate_head or fixed_head is not None)
                         time_embeds.append(gating_weights.detach().cpu().numpy())
                     else:
-                        outputs = self.model(batch_x, batch_x_mark, return_seperate_head=seperate_head or fixed_head is not None)
+                        outputs = self.model(g_batch_x, g_batch_x_mark, return_seperate_head=seperate_head or fixed_head is not None,\
+                                             return_gating_weights=False, device=tt_device, type=tt_type)
                         # print("Model:\n", self.model)
 
                 elif 'former' not in self.args.model:
