@@ -90,6 +90,8 @@ class Model(nn.Module):
             seasonal_init, trend_init = self.decompsition(x)
             # print("seasonal_init(res): {}, trend_init(avg): {}".format(seasonal_init.shape, trend_init.shape))
             seasonal_init, trend_init = seasonal_init.permute(0,2,1), trend_init.permute(0,2,1)
+            # print("after permutation, seasonal_init(res): {}, trend_init(avg): {}".format(seasonal_init.shape, trend_init.shape))
+            seasonal_output = self.Linear_Seasonal(seasonal_init)
         else:
             "---------------------------- slice --------------------------"
             tt_x_mark_initial = ttnn.slice(
@@ -129,13 +131,28 @@ class Model(nn.Module):
             trend_init_nch=ttnn.permute(trend_init, (0, 2, 1))  ## N C H
             seasonal_init_nch=ttnn.permute(seasonal_init, (0, 2, 1))  ## N C H
 
+
+            # print("after permutation, seasonal_init(res): {}, trend_init(avg): {}".format(seasonal_init.shape, trend_init.shape))
+            # seasonal_output = self.Linear_Seasonal(seasonal_init_nch)
+            weight_season=self.Linear_Seasonal.weight
+            weight_season=ttnn.from_torch(weight_season, layout=ttnn.TILE_LAYOUT, device=device, dtype=type)
+
+            bias_season=self.Linear_Seasonal.bias
+            bias_season=ttnn.from_torch(bias_season, layout=ttnn.TILE_LAYOUT, device=device, dtype=type)
+
+            seasonal_init = ttnn.to_layout(seasonal_init_nch, layout=ttnn.TILE_LAYOUT)
+
+            # print("input:{}, weight: {}, bias: {}".format(seasonal_init.shape, weight_season.shape, bias_season.shape))
+
+            seasonal_output=ttnn.linear(seasonal_init, weight_season, bias=bias_season, transpose_b=True)
+
+            seasonal_output=ttnn.to_torch(seasonal_output)
             trend_init=ttnn.to_torch(trend_init_nch)
-            seasonal_init=ttnn.to_torch(seasonal_init_nch)
+            # seasonal_init=ttnn.to_torch(seasonal_init_nch)
 
 
 
-        # print("after permutation, seasonal_init(res): {}, trend_init(avg): {}".format(seasonal_init.shape, trend_init.shape))
-        seasonal_output = self.Linear_Seasonal(seasonal_init)
+
         # print("seasonal_output: {}".format(seasonal_output.shape))
         trend_output = self.Linear_Trend(trend_init)
         # print("trend_output: {}".format(trend_output.shape))
