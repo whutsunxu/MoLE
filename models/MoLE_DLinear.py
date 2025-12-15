@@ -99,6 +99,14 @@ class Model(nn.Module):
             x = seasonal_output + trend_output
 
             temporal_out = self.Linear_Temporal(x_mark_initial)
+            temporal_out = temporal_out.reshape(-1, self.num_predictions)
+
+            # print("temporal_out: {}".format(temporal_out.shape))
+            temporal_out = self.head_dropout(temporal_out)
+            temporal_out = nn.Softmax(dim=1)(temporal_out)
+
+            x_raw = x.reshape(-1, self.pred_len, self.num_predictions)
+
         else:
             "---------------------------- slice --------------------------"
             x_mark_initial = ttnn.slice(
@@ -163,7 +171,7 @@ class Model(nn.Module):
             trend_output=ttnn.linear(trend_init_nch, weight_tread, bias=bias_tread, transpose_b=True)
 
             x = seasonal_output + trend_output
-            x=ttnn.to_torch(x)
+            # x=ttnn.to_torch(x)
 
 
             "---------------------------- linear temp --------------------------"
@@ -186,17 +194,21 @@ class Model(nn.Module):
             bias_temp2=ttnn.from_torch(bias_temp2, layout=ttnn.TILE_LAYOUT, device=device, dtype=type)
             output_temp2=ttnn.linear(output_temp1, weight_temp2, bias=bias_temp2, transpose_b=True)
 
-            temporal_out=ttnn.to_torch(output_temp2)
+            temporal_out = ttnn.reshape(output_temp2, (-1, self.num_predictions))
 
+            "---------------------------- softmax --------------------------"
+            # print("temporal_out: {}".format(temporal_out.shape))
+            temporal_out = ttnn.softmax(temporal_out, dim=1)  ## (TODO softmax brings a lot of precision loss from 1e-4 upto 1e-3)
 
+            temporal_out=ttnn.to_torch(temporal_out)
 
-        temporal_out = temporal_out.reshape(-1, self.num_predictions)
+            # x_raw = x.reshape(-1, self.pred_len, self.num_predictions)
+
+            x_raw=ttnn.reshape(x, (-1, self.pred_len, self.num_predictions))
+
+            x_raw=ttnn.to_torch(x_raw)
+
         # print("temporal_out: {}".format(temporal_out.shape))
-        temporal_out = self.head_dropout(temporal_out)
-        temporal_out = nn.Softmax(dim=1)(temporal_out)
-        # print("temporal_out: {}".format(temporal_out.shape))
-
-        x_raw = x.reshape(-1, self.pred_len, self.num_predictions)
 
         x = torch.matmul(x_raw, temporal_out.unsqueeze(2)).squeeze(2).reshape(-1, self.channels, self.pred_len).permute(0,2,1)
         # print("x_raw: {}, temporal_out.unsqueeze(2): {}, x: {}".format(x_raw.shape, temporal_out.unsqueeze(2).shape, x.shape))

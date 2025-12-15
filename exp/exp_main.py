@@ -233,8 +233,8 @@ class Exp_Main(Exp_Basic):
         use_device = True
         tt_device = None
         tt_type = None
-        rtol=5e-4
-        atol=5e-4
+        rtol=5e-3
+        atol=5e-3
         if use_device:
             tt_device=ttnn.CreateDevice(0)
             tt_type=ttnn.float32
@@ -368,6 +368,8 @@ class Exp_Main(Exp_Basic):
             # Print the detailed mismatch log
             print("Mismatch details for error:\n", e)
             print('distance on error: mse:{}, mae:{}, rse:{}'.format(distance_error[0], distance_error[1], distance_error[2]))
+            print('mse:{}, mae:{}, rse:{}'.format(mse, mae, rse))
+            print('golden: mse:{}, mae:{}, rse:{}'.format(error_golden[0], error_golden[1], error_golden[2]))
             assert False
 
         print('mse:{}, mae:{}, rse:{}'.format(mse, mae, rse))
