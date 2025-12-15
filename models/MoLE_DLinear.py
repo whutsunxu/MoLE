@@ -94,12 +94,17 @@ class Model(nn.Module):
             seasonal_output = self.Linear_Seasonal(seasonal_init)
             # print("seasonal_output: {}".format(seasonal_output.shape))
             trend_output = self.Linear_Trend(trend_init)
+
+            # print("trend_output: {}".format(trend_output.shape))
+            x = seasonal_output + trend_output
+
+            temporal_out = self.Linear_Temporal(x_mark_initial)
         else:
             "---------------------------- slice --------------------------"
-            tt_x_mark_initial = ttnn.slice(
+            x_mark_initial = ttnn.slice(
                 x_mark, slice_start=(0, 0, 0), slice_end=(x_mark.shape[0], 1, x_mark.shape[2]), slice_step=(1, 1, 1)
             )
-            x_mark_initial=ttnn.to_torch(tt_x_mark_initial)
+            # x_mark_initial=ttnn.to_torch(tt_x_mark_initial)
 
             "---------------------------- mov avg --------------------------"
 
@@ -157,16 +162,35 @@ class Model(nn.Module):
 
             trend_output=ttnn.linear(trend_init_nch, weight_tread, bias=bias_tread, transpose_b=True)
 
-            seasonal_output=ttnn.to_torch(seasonal_output)
-            trend_output=ttnn.to_torch(trend_output)
+            x = seasonal_output + trend_output
+            x=ttnn.to_torch(x)
 
 
-        # print("trend_output: {}".format(trend_output.shape))
+            "---------------------------- linear temp --------------------------"
+            # temporal_out = self.Linear_Temporal(x_mark_initial).reshape(-1, self.num_predictions)
 
-        x = seasonal_output + trend_output
+            weight_temp0=self.Linear_Temporal[0].weight
+            weight_temp0=ttnn.from_torch(weight_temp0, layout=ttnn.TILE_LAYOUT, device=device, dtype=type)
+
+            bias_temp0=self.Linear_Temporal[0].bias
+            bias_temp0=ttnn.from_torch(bias_temp0, layout=ttnn.TILE_LAYOUT, device=device, dtype=type)
+            x_mark_initial = ttnn.to_layout(x_mark_initial, layout=ttnn.TILE_LAYOUT)
+            output_temp0=ttnn.linear(x_mark_initial, weight_temp0, bias=bias_temp0, transpose_b=True)
+
+            output_temp1=ttnn.relu(output_temp0)
+
+            weight_temp2=self.Linear_Temporal[2].weight
+            weight_temp2=ttnn.from_torch(weight_temp2, layout=ttnn.TILE_LAYOUT, device=device, dtype=type)
+
+            bias_temp2=self.Linear_Temporal[2].bias
+            bias_temp2=ttnn.from_torch(bias_temp2, layout=ttnn.TILE_LAYOUT, device=device, dtype=type)
+            output_temp2=ttnn.linear(output_temp1, weight_temp2, bias=bias_temp2, transpose_b=True)
+
+            temporal_out=ttnn.to_torch(output_temp2)
 
 
-        temporal_out = self.Linear_Temporal(x_mark_initial).reshape(-1, self.num_predictions)
+
+        temporal_out = temporal_out.reshape(-1, self.num_predictions)
         # print("temporal_out: {}".format(temporal_out.shape))
         temporal_out = self.head_dropout(temporal_out)
         temporal_out = nn.Softmax(dim=1)(temporal_out)
