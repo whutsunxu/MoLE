@@ -106,6 +106,11 @@ class Model(nn.Module):
             temporal_out = nn.Softmax(dim=1)(temporal_out)
 
             x_raw = x.reshape(-1, self.pred_len, self.num_predictions)
+            temporal_out=temporal_out.unsqueeze(2)
+
+            x=torch.matmul(x_raw, temporal_out)
+            x=x.squeeze(2).reshape(-1, self.channels, self.pred_len)
+            x = x.permute(0,2,1)
 
         else:
             "---------------------------- slice --------------------------"
@@ -200,17 +205,30 @@ class Model(nn.Module):
             # print("temporal_out: {}".format(temporal_out.shape))
             temporal_out = ttnn.softmax(temporal_out, dim=1)  ## (TODO softmax brings a lot of precision loss from 1e-4 upto 1e-3)
 
-            temporal_out=ttnn.to_torch(temporal_out)
+            # temporal_out=temporal_out.unsqueeze(2)
+            temporal_out=ttnn.unsqueeze(temporal_out, dim=2)
+
+            # temporal_out=ttnn.to_torch(temporal_out)
 
             # x_raw = x.reshape(-1, self.pred_len, self.num_predictions)
 
             x_raw=ttnn.reshape(x, (-1, self.pred_len, self.num_predictions))
 
-            x_raw=ttnn.to_torch(x_raw)
+            # x_raw=ttnn.to_torch(x_raw)
 
-        # print("temporal_out: {}".format(temporal_out.shape))
 
-        x = torch.matmul(x_raw, temporal_out.unsqueeze(2)).squeeze(2).reshape(-1, self.channels, self.pred_len).permute(0,2,1)
-        # print("x_raw: {}, temporal_out.unsqueeze(2): {}, x: {}".format(x_raw.shape, temporal_out.unsqueeze(2).shape, x.shape))
+            "---------------------------- matmul --------------------------"
+            # x=torch.matmul(x_raw, temporal_out)
+            # print("x_raw: {}, temporal_out: {}".format(x_raw.shape, temporal_out.shape))
+            x=ttnn.matmul(x_raw, temporal_out)
+
+            # x=x.squeeze(2).reshape(-1, self.channels, self.pred_len)
+            x=ttnn.squeeze(x,dim=2)
+            x=ttnn.reshape(x,(-1, self.channels, self.pred_len))
+
+            # x = x.permute(0,2,1)
+            x=ttnn.permute(x, (0, 2, 1))  ## N H C
+
+            x=ttnn.to_torch(x)
 
         return x
