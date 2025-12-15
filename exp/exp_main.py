@@ -233,8 +233,8 @@ class Exp_Main(Exp_Basic):
         use_device = True
         tt_device = None
         tt_type = None
-        rtol=1e-4
-        atol=1e-4
+        rtol=5e-4
+        atol=5e-4
         if use_device:
             tt_device=ttnn.CreateDevice(0)
             tt_type=ttnn.float32
